@@ -1,0 +1,22 @@
+name: Control - Demo without Garnet
+on:
+  workflow_dispatch:
+jobs:
+  control:
+    name: Same postinstall, no Garnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: "Same postinstall, NO Garnet sensor present"
+        env:
+          NPM_TOKEN: "demo-not-a-real-token"
+          GH_TOKEN: "demo-not-a-real-token"
+          AWS_ACCESS_KEY_ID: "AKIA-DEMO-NOT-REAL"
+        run: node .garnet-demo/postinstall.js
+
