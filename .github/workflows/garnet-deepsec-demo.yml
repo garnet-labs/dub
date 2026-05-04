@@ -1,0 +1,44 @@
+name: Garnet x DeepSec — Supply-Chain Blindspot Demo
+
+# This workflow simulates a transitive-dependency supply-chain attack at install time.
+# DeepSec's static scan of this repo would not flag the malicious behavior — it lives
+# in install-time JavaScript that only exists at execution time. Garnet's eBPF sensor
+# observes the file reads, env access, and network egress as they happen.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-time-supply-chain:
+    name: Simulated supply-chain compromise (install-time)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Garnet Runtime Visibility
+        uses: garnet-org/action@v2
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # In a real attack, this script would be shipped inside a transitive npm
+      # dependency's postinstall hook. Here we run it directly so the demo is
+      # self-contained and reviewable. The behaviors are identical from eBPF's
+      # perspective: a child node process spawned by npm/pnpm reading env,
+      # statting credential paths, and making outbound HTTPS to a non-registry host.
+      - name: "Simulate transitive postinstall (benign Shai-Hulud-class TTPs)"
+        env:
+          # Realistic env shape that token-harvesters target:
+          NPM_TOKEN: "demo-not-a-real-token"
+          GH_TOKEN: "demo-not-a-real-token"
+          AWS_ACCESS_KEY_ID: "AKIA-DEMO-NOT-REAL"
+        run: node .garnet-demo/postinstall.js
+
+      - name: Idle to ensure Garnet captures post-event flows
+        run: sleep 20
