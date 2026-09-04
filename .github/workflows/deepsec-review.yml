@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - ".garnet-demo/runtime-review/**"
+      - "apps/web/lib/webhook/preview.ts"
+      - "apps/web/app/api/webhooks/preview/**"
       - ".github/workflows/deepsec-review.yml"
       - ".github/workflows/deepsec-review-comment.yml"
 
@@ -78,7 +80,7 @@ jobs:
         working-directory: .garnet-demo/runtime-review
         env:
           PREVIEW_TARGET_URL: https://example.com/garnet-deepsec-demo
-        run: node webhook-preview.mjs
+        run: node --experimental-strip-types webhook-preview.mjs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

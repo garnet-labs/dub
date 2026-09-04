@@ -10,10 +10,10 @@ const deterministicReviewFixture = {
       results: params.batch.map((record: any) => ({
         filePath: record.filePath,
         findings: (() => {
-          if (!record.filePath.endsWith("runtime-review/webhook-preview.mjs")) return [];
+          if (!record.filePath.endsWith("apps/web/lib/webhook/preview.ts")) return [];
           const content = fs.readFileSync(path.resolve(params.projectRoot, record.filePath), "utf8");
           const fetchLine = content.split("\n").findIndex((line) => line.includes("fetch(")) + 1;
-          return !content.includes("ALLOWED_PREVIEW_HOSTS")
+          return !content.includes("isAllowedPreviewTarget(url)")
             ? [
                 {
                   severity: "HIGH",
