@@ -1,0 +1,150 @@
+name: DeepSec + Garnet runtime evidence
+
+on:
+  pull_request:
+    paths:
+      - ".garnet-demo/runtime-review/**"
+      - ".github/workflows/garnet-deepsec-pr.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  analyze-and-exercise:
+    name: DeepSec finding + runtime reproduction
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out Dub
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Start Garnet Runtime Review
+        uses: garnet-org/action@main
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
+          jibril_version: v2.17.0-rc.8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.19"
+
+      - name: Check out the Garnet DeepSec plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: garnet-labs/deepsec-plugin
+          ref: 96b39e8b38bbc6567dbe6c5660c7127ae959bc66
+          path: .garnet-demo/runtime-review/plugin
+
+      - name: Build the plugin and install the demo tools
+        run: |
+          cd .garnet-demo/runtime-review/plugin
+          npm ci --no-fund --no-audit
+          npm run build
+          cd ..
+          npm install --no-fund --no-audit --no-save deepsec@2.3.9 ./plugin
+
+      - name: Produce native DeepSec PR output
+        working-directory: .garnet-demo/runtime-review
+        run: |
+          set +e
+          npx deepsec process \
+            --files .garnet-demo/runtime-review/webhook-preview.mjs \
+            --root ../.. \
+            --project-id dub-runtime-review-demo \
+            --agent deterministic-review-fixture \
+            --comment-out deepsec-comment.md
+          status=$?
+          set -e
+          test "$status" -eq 1
+          npx deepsec export \
+            --project-id dub-runtime-review-demo \
+            --format json \
+            --out deepsec-findings.json
+
+      - name: Exercise the reviewed path
+        working-directory: .garnet-demo/runtime-review
+        env:
+          PREVIEW_TARGET_URL: https://example.com/garnet-deepsec-demo
+        run: node webhook-preview.mjs
+
+      - name: Upload DeepSec artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepsec-runtime-review
+          path: |
+            .garnet-demo/runtime-review/deepsec-comment.md
+            .garnet-demo/runtime-review/deepsec-findings.json
+          retention-days: 3
+
+  correlate-and-comment:
+    name: Attach exact-run Garnet evidence
+    needs: analyze-and-exercise
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.19"
+
+      - name: Check out the Garnet DeepSec plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: garnet-labs/deepsec-plugin
+          ref: 96b39e8b38bbc6567dbe6c5660c7127ae959bc66
+          path: plugin
+
+      - name: Build the adapter
+        run: |
+          cd plugin
+          npm ci --no-fund --no-audit
+          npm run build
+          npm install --no-fund --no-audit --no-save deepsec@2.3.9
+
+      - name: Download native DeepSec output
+        uses: actions/download-artifact@v4
+        with:
+          name: deepsec-runtime-review
+          path: artifacts
+
+      - name: Correlate the exact workflow run
+        env:
+          GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd plugin
+          npx deepsec garnet-correlate \
+            --findings ../artifacts/deepsec-findings.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --out ../artifacts/garnet-correlated.json \
+            --comment-out ../artifacts/garnet-comment.md
+
+      - name: Post one combined review comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- deepsec-garnet-runtime-review -->";
+            const deepsec = fs.readFileSync("artifacts/deepsec-comment.md", "utf8");
+            const garnet = fs.readFileSync("artifacts/garnet-comment.md", "utf8");
+            const body = `${marker}\n${deepsec}\n\n---\n\n${garnet}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const prior = comments.find((comment) => comment.body?.includes(marker));
+            if (prior) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: prior.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
