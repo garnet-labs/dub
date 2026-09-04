@@ -1,10 +1,5 @@
-const ALLOWED_PREVIEW_HOSTS = new Set(["api.dub.co"]);
-
 export async function deliverWebhookPreview(targetUrl) {
   const url = new URL(targetUrl);
-  if (url.protocol !== "https:" || !ALLOWED_PREVIEW_HOSTS.has(url.hostname)) {
-    return { status: "blocked", destination: url.hostname };
-  }
   const response = await fetch(url, { headers: { "user-agent": "dub-runtime-review-demo/1.1" } });
   await response.arrayBuffer();
   return { status: response.status, destination: url.hostname };
