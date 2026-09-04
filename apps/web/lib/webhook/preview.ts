@@ -30,7 +30,10 @@ export async function deliverWebhookPreview(targetUrl: string) {
       "content-type": "application/json",
       "user-agent": PREVIEW_USER_AGENT,
     },
-    body: JSON.stringify({ event: "webhook.preview" }),
+    body: JSON.stringify({
+      event: "webhook.preview",
+      createdAt: new Date().toISOString(),
+    }),
     signal: AbortSignal.timeout(PREVIEW_TIMEOUT_MS),
   });
   await response.arrayBuffer();
