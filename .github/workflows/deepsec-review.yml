@@ -43,12 +43,15 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           review() {
+            model_flag=""
+            if [ "$1" = deterministic-review-fixture ]; then model_flag="--model no-model-fixture"; fi
             set +e
+            # shellcheck disable=SC2086
             npx deepsec process \
               --diff "origin/$BASE_REF" \
               --root ../.. \
               --project-id dub-runtime-review-demo \
-              --agent "$1" \
+              --agent "$1" $model_flag \
               --comment-out deepsec-comment.md 2>&1 | tee deepsec-process.log
             status=${PIPESTATUS[0]}
             set -e
