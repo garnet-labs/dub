@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { defineConfig } from "deepsec/config";
 import garnetPlugin from "@garnet-org/deepsec-plugin";
 
@@ -7,8 +9,11 @@ const deterministicReviewFixture = {
     return {
       results: params.batch.map((record: any) => ({
         filePath: record.filePath,
-        findings:
-          record.filePath.endsWith("runtime-review/webhook-preview.mjs")
+        findings: (() => {
+          if (!record.filePath.endsWith("runtime-review/webhook-preview.mjs")) return [];
+          const root = params.root ?? "../..";
+          const content = fs.readFileSync(path.resolve(root, record.filePath), "utf8");
+          return !content.includes("ALLOWED_PREVIEW_HOSTS")
             ? [
                 {
                   severity: "HIGH",
@@ -22,7 +27,8 @@ const deterministicReviewFixture = {
                   confidence: "high",
                 },
               ]
-            : [],
+            : [];
+        })(),
       })),
       meta: {
         durationMs: 1,
