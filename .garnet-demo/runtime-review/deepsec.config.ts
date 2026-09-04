@@ -12,6 +12,7 @@ const deterministicReviewFixture = {
         findings: (() => {
           if (!record.filePath.endsWith("runtime-review/webhook-preview.mjs")) return [];
           const content = fs.readFileSync(path.resolve(params.projectRoot, record.filePath), "utf8");
+          const fetchLine = content.split("\n").findIndex((line) => line.includes("fetch(")) + 1;
           return !content.includes("ALLOWED_PREVIEW_HOSTS")
             ? [
                 {
@@ -20,7 +21,7 @@ const deterministicReviewFixture = {
                   title: "Unvalidated webhook URL reaches a server-side fetch",
                   description:
                     "The preview target is accepted without an allowlist or private-network guard and is passed directly to fetch(). An attacker who controls this value could make the server connect to an unintended destination.",
-                  lineNumbers: [8, 9, 10],
+                  lineNumbers: [fetchLine],
                   recommendation:
                     "Validate the scheme and hostname, block loopback/private/link-local ranges after DNS resolution, and apply an explicit destination policy.",
                   confidence: "high",
