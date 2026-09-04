@@ -1,0 +1,9 @@
+{
+  "name": "dub-deepsec-garnet-demo",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "deepsec": "2.3.9",
+    "@garnet-org/deepsec-plugin": "github:garnet-labs/deepsec-plugin#PLUGIN_SHA_PLACEHOLDER"
+  }
+}
