@@ -4,6 +4,6 @@
   "type": "module",
   "dependencies": {
     "deepsec": "2.3.9",
-    "@garnet-org/deepsec-plugin": "github:garnet-labs/deepsec-plugin#PLUGIN_SHA_PLACEHOLDER"
+    "@garnet-org/deepsec-plugin": "github:garnet-labs/deepsec-plugin#bedf5da917f7e3f83cba8913768eaf7d413c7230"
   }
 }
