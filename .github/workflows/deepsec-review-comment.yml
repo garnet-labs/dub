@@ -31,10 +31,26 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
           path: .garnet-demo/runtime-review/artifacts
+      # The Garnet action registers one sensor (agent) per job and logs its ID.
+      # Profiles recorded under OIDC are readable through that agent, so the
+      # correlation asks for the exact run's agent instead of a project-wide lookup.
+      - name: Resolve the Garnet agent that recorded the run
+        id: agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          job_id=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.name == "DeepSec review + runtime exercise") | .id')
+          agent_id=$(gh api "/repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" 2>/dev/null \
+            | grep -m1 -oE 'Created agent with ID: [0-9a-f-]{36}' | awk '{print $NF}' || true)
+          echo "agent id: ${agent_id:-not found}"
+          echo "id=$agent_id" >> "$GITHUB_OUTPUT"
       - name: Correlate findings with the exact Garnet run
         working-directory: .garnet-demo/runtime-review
         env:
           GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
+          GARNET_AGENT_ID: ${{ steps.agent.outputs.id }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           npx deepsec garnet-correlate \
