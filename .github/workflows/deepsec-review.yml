@@ -59,7 +59,7 @@ jobs:
           if [ -z "$AI_GATEWAY_API_KEY" ]; then agent=deterministic-review-fixture; agent_note="no AI_GATEWAY_API_KEY"; fi
           review "$agent"
           # DeepSec reports "0 findings" when the model backend fails; fall back to the labeled fixture instead of publishing a false negative.
-          if [ "$agent" = codex ] && grep -qE "Codex (SDK|turn|stream) (error|failed)" deepsec-process.log; then
+          if [ "$agent" = codex ] && grep -qE "Errored batches: [1-9]|Codex (SDK|turn|stream) (error|failed)" deepsec-process.log; then
             agent_note="codex unavailable: $(grep -oE 'status [0-9]{3}[^)]*' deepsec-process.log | head -1 | tr -d '"\\' | cut -c1-80)"
             agent=deterministic-review-fixture
             rm -f deepsec-comment.md
