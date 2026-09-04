@@ -42,6 +42,9 @@ jobs:
         working-directory: .garnet-demo/runtime-review
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          # The ephemeral runner is the isolation boundary, so skip Codex's
+          # nested sandbox (network stays disabled for the agent's shell).
+          DEEPSEC_INSIDE_SANDBOX: "1"
           BASE_REF: ${{ github.base_ref }}
         run: |
           review() {
