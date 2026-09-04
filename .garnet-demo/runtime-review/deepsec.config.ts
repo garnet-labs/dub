@@ -11,8 +11,7 @@ const deterministicReviewFixture = {
         filePath: record.filePath,
         findings: (() => {
           if (!record.filePath.endsWith("runtime-review/webhook-preview.mjs")) return [];
-          const root = params.root ?? "../..";
-          const content = fs.readFileSync(path.resolve(root, record.filePath), "utf8");
+          const content = fs.readFileSync(path.resolve(params.projectRoot, record.filePath), "utf8");
           return !content.includes("ALLOWED_PREVIEW_HOSTS")
             ? [
                 {
