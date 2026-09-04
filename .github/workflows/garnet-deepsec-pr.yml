@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: 7f5fdaa05531cb2e6d69b3cbbff566793bca9d03
+          ref: ab87c314eacefc19918dc218fc3c266830a8462d
           path: .garnet-demo/runtime-review/plugin
 
       - name: Build the plugin and install the demo tools
@@ -102,7 +102,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: 7f5fdaa05531cb2e6d69b3cbbff566793bca9d03
+          ref: ab87c314eacefc19918dc218fc3c266830a8462d
           path: dub/.garnet-demo/runtime-review/plugin
 
       - name: Build the adapter
@@ -129,6 +129,7 @@ jobs:
             --findings artifacts/deepsec-findings.json \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$GITHUB_RUN_ID" \
+            --step "Exercise the reviewed path" \
             --out artifacts/garnet-correlated.json \
             --comment-out artifacts/garnet-comment.md
 
