@@ -42,23 +42,34 @@ jobs:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           BASE_REF: ${{ github.base_ref }}
         run: |
+          review() {
+            set +e
+            npx deepsec process \
+              --diff "origin/$BASE_REF" \
+              --root ../.. \
+              --project-id dub-runtime-review-demo \
+              --agent "$1" \
+              --comment-out deepsec-comment.md 2>&1 | tee deepsec-process.log
+            status=${PIPESTATUS[0]}
+            set -e
+            case "$status" in 0|1) ;; *) exit "$status" ;; esac
+          }
           agent=codex
-          if [ -z "$AI_GATEWAY_API_KEY" ]; then agent=deterministic-review-fixture; fi
+          agent_note=""
+          if [ -z "$AI_GATEWAY_API_KEY" ]; then agent=deterministic-review-fixture; agent_note="no AI_GATEWAY_API_KEY"; fi
+          review "$agent"
+          # DeepSec reports "0 findings" when the model backend fails; fall back to the labeled fixture instead of publishing a false negative.
+          if [ "$agent" = codex ] && grep -qE "Codex (SDK|turn|stream) (error|failed)" deepsec-process.log; then
+            agent_note="codex unavailable: $(grep -oE 'status [0-9]{3}[^)]*' deepsec-process.log | head -1 | tr -d '"\\' | cut -c1-80)"
+            agent=deterministic-review-fixture
+            rm -f deepsec-comment.md
+            review "$agent"
+          fi
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
-          set +e
-          npx deepsec process \
-            --diff "origin/$BASE_REF" \
-            --root ../.. \
-            --project-id dub-runtime-review-demo \
-            --agent "$agent" \
-            --comment-out deepsec-comment.md
-          status=$?
-          set -e
-          case "$status" in 0|1) ;; *) exit "$status" ;; esac
           if [ ! -e deepsec-comment.md ]; then touch deepsec-comment.md; fi
           npx deepsec export --project-id dub-runtime-review-demo --format json --out deepsec-findings.json
-          printf '{"pullRequest":%s,"headSha":"%s","agent":"%s","findingsExit":%s}\n' \
-            "${{ github.event.pull_request.number }}" "${{ github.event.pull_request.head.sha }}" "$agent" "$status" > review-meta.json
+          printf '{"pullRequest":%s,"headSha":"%s","agent":"%s","agentNote":"%s","findingsExit":%s}\n' \
+            "${{ github.event.pull_request.number }}" "${{ github.event.pull_request.head.sha }}" "$agent" "$agent_note" "$status" > review-meta.json
 
       - name: Exercise the reviewed path
         working-directory: .garnet-demo/runtime-review
