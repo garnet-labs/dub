@@ -19,9 +19,7 @@ test("delivers a preview webhook to the configured integration receiver", async 
         key: "runtime-review",
       },
     },
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
+    authorizationToken: token,
   });
 
   assert.equal(receipt.accepted, true);

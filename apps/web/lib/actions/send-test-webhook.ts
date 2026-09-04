@@ -45,6 +45,7 @@ export const sendTestWebhookEvent = authActionClient
         url: previewUrl,
         trigger,
         data: samplePayload[trigger],
+        authorizationToken: webhook.secret,
       });
 
       return { ok: true };

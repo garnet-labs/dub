@@ -58,6 +58,15 @@ jobs:
           EOF
           echo "DEEPSEC_TOOL_DIR=$tool_dir" >> "$GITHUB_ENV"
 
+      - name: Run webhook preview integration test
+        env:
+          RUNTIME_RECEIVER_URL: ${{ vars.RUNTIME_RECEIVER_URL }}
+          RUNTIME_RECEIVER_TOKEN: ${{ secrets.RUNTIME_RECEIVER_TOKEN }}
+        run: |
+          node --experimental-strip-types --test \
+            apps/web/tests/webhooks/send-test-webhook-preview.integration.test.mjs
+          sleep 10
+
       - name: Run native DeepSec PR review
         id: deepsec
         env:
@@ -82,15 +91,6 @@ jobs:
             --project-id dub-pr-review \
             --format json \
             --out "$RUNNER_TEMP/review-artifacts/deepsec-findings.json"
-
-      - name: Run webhook preview integration test
-        env:
-          RUNTIME_RECEIVER_URL: ${{ vars.RUNTIME_RECEIVER_URL }}
-          RUNTIME_RECEIVER_TOKEN: ${{ secrets.RUNTIME_RECEIVER_TOKEN }}
-        run: |
-          node --experimental-strip-types --test \
-            apps/web/tests/webhooks/send-test-webhook-preview.integration.test.mjs
-          sleep 10
 
       - name: Record review identity
         env:

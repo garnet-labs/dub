@@ -2,7 +2,7 @@ interface SendTestWebhookPreviewInput {
   url: string;
   trigger: string;
   data: unknown;
-  headers?: Record<string, string>;
+  authorizationToken: string;
 }
 
 interface TestWebhookReceipt {
@@ -15,13 +15,13 @@ export async function sendTestWebhookPreview({
   url,
   trigger,
   data,
-  headers = {},
+  authorizationToken,
 }: SendTestWebhookPreviewInput): Promise<TestWebhookReceipt> {
   const response = await fetch(url, {
     method: "POST",
     headers: {
+      authorization: `Bearer ${authorizationToken}`,
       "content-type": "application/json",
-      ...headers,
     },
     body: JSON.stringify({ event: trigger, data }),
   });
