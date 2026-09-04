@@ -16,8 +16,6 @@ jobs:
     name: DeepSec finding + runtime reproduction
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      garnet-agent-id: ${{ steps.garnet.outputs.agent_id }}
     steps:
       - name: Check out Dub
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -25,7 +23,6 @@ jobs:
           fetch-depth: 0
 
       - name: Start Garnet Runtime Review
-        id: garnet
         uses: garnet-org/action@main
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
@@ -40,7 +37,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: dfb96b322605ebed9ce1108da8bc71a1a5d13b81
+          ref: 7f5fdaa05531cb2e6d69b3cbbff566793bca9d03
           path: .garnet-demo/runtime-review/plugin
 
       - name: Build the plugin and install the demo tools
@@ -105,7 +102,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: dfb96b322605ebed9ce1108da8bc71a1a5d13b81
+          ref: 7f5fdaa05531cb2e6d69b3cbbff566793bca9d03
           path: dub/.garnet-demo/runtime-review/plugin
 
       - name: Build the adapter
@@ -126,14 +123,12 @@ jobs:
         working-directory: dub/.garnet-demo/runtime-review
         env:
           GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
-          GARNET_AGENT_ID: ${{ needs.analyze-and-exercise.outputs.garnet-agent-id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           npx deepsec garnet-correlate \
             --findings artifacts/deepsec-findings.json \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$GITHUB_RUN_ID" \
-            --agent-id "$GARNET_AGENT_ID" \
             --out artifacts/garnet-correlated.json \
             --comment-out artifacts/garnet-comment.md
 
