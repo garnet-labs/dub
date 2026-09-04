@@ -37,8 +37,9 @@ jobs:
         working-directory: .garnet-demo/runtime-review
         run: npm ci --no-fund --no-audit
 
+      # No `id:` on run steps: Jibril attributes processes to steps through the
+      # anonymous `__run_N` GITHUB_ACTION values, and a custom id shifts them.
       - name: Review the pull request diff with DeepSec
-        id: deepsec
         working-directory: .garnet-demo/runtime-review
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
@@ -73,7 +74,6 @@ jobs:
             rm -f deepsec-comment.md
             review "$agent"
           fi
-          echo "agent=$agent" >> "$GITHUB_OUTPUT"
           if [ ! -e deepsec-comment.md ]; then touch deepsec-comment.md; fi
           npx deepsec export --project-id dub-runtime-review-demo --format json --out deepsec-findings.json
           printf '{"pullRequest":%s,"headSha":"%s","agent":"%s","agentNote":"%s","findingsExit":%s}\n' \
