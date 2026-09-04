@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: 96b39e8b38bbc6567dbe6c5660c7127ae959bc66
+          ref: 2786a58130e3ad2e9ac5d05e458354fa9cb3f3b4
           path: .garnet-demo/runtime-review/plugin
 
       - name: Build the plugin and install the demo tools
@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: garnet-labs/deepsec-plugin
-          ref: 96b39e8b38bbc6567dbe6c5660c7127ae959bc66
+          ref: 2786a58130e3ad2e9ac5d05e458354fa9cb3f3b4
           path: plugin
 
       - name: Build the adapter
