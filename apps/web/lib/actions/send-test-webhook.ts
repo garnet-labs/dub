@@ -5,6 +5,7 @@ import * as z from "zod/v4";
 import { WEBHOOK_TRIGGERS } from "../webhook/constants";
 import { sendWebhooks } from "../webhook/qstash";
 import { samplePayload } from "../webhook/sample-events/payload";
+import { sendTestWebhookPreview } from "../webhook/send-test-webhook-preview";
 import { authActionClient } from "./safe-action";
 import { throwIfNoPermission } from "./throw-if-no-permission";
 
@@ -12,6 +13,7 @@ const schema = z.object({
   workspaceId: z.string(),
   webhookId: z.string(),
   trigger: z.enum(WEBHOOK_TRIGGERS),
+  previewUrl: z.string().url().optional(),
 });
 
 // Test send webhook event
@@ -19,7 +21,7 @@ export const sendTestWebhookEvent = authActionClient
   .inputSchema(schema)
   .action(async ({ ctx, parsedInput }) => {
     const { workspace } = ctx;
-    const { webhookId, trigger } = parsedInput;
+    const { webhookId, trigger, previewUrl } = parsedInput;
 
     throwIfNoPermission({
       role: workspace.role,
@@ -37,6 +39,17 @@ export const sendTestWebhookEvent = authActionClient
         secret: true,
       },
     });
+
+    if (previewUrl) {
+      await sendTestWebhookPreview({
+        url: previewUrl,
+        trigger,
+        data: samplePayload[trigger],
+        authorizationToken: webhook.secret,
+      });
+
+      return { ok: true };
+    }
 
     await sendWebhooks({
       webhooks: [webhook],
