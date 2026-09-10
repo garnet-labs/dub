@@ -3,9 +3,9 @@ name: Codex Security verify-fix
 # Runs Codex Security's own verify-fix step on the pull request head, after
 # Garnet has posted the Execution Profile for that head. AGENTS.md and
 # SECURITY.md tell the verifier to read that record before calling a fix
-# verified. The finding under verification is the text between
-# `<!-- codex-security:finding:start -->` and `<!-- codex-security:finding:end -->`
-# in the pull request description.
+# verified. The finding under verification is the text between two lines of
+# the pull request description that consist solely of the markers
+# `<!-- codex-security:finding:start -->` and `<!-- codex-security:finding:end -->`.
 
 on:
   pull_request:
@@ -42,7 +42,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.body // ""' > "$RUNNER_TEMP/pr-body.md"
-          awk '/<!-- codex-security:finding:start -->/{flag=1; next} /<!-- codex-security:finding:end -->/{flag=0} flag' \
+          awk '/^<!-- codex-security:finding:start -->$/{flag=1; next} /^<!-- codex-security:finding:end -->$/{flag=0} flag' \
             "$RUNNER_TEMP/pr-body.md" > "$RUNNER_TEMP/finding.md"
           if [ -s "$RUNNER_TEMP/finding.md" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
@@ -143,7 +143,6 @@ jobs:
             try { results = JSON.parse(read(`${tmp}/verify-fix.json`)).results ?? []; } catch {}
             const log = read(`${tmp}/verify-fix.log`);
             const exit = process.env.VERIFY_STATUS;
-            const outcome = { "0": "fixed", "1": "still_vulnerable", "2": "inconclusive" }[exit] ?? `exit ${exit}`;
             const profile = {
               recorded: `Execution Profile bound to \`${head.slice(0, 7)}\` was on the pull request before verification`,
               pending: `Execution Profile for \`${head.slice(0, 7)}\` was still recording; verifier saw the pending comment`,
@@ -151,7 +150,7 @@ jobs:
             }[process.env.PROFILE_STATE] ?? "Execution Profile state unknown";
             const rows = results.length
               ? results.map((r) => `| \`${r.id}\` | **${r.status}** | ${String(r.evidence ?? "").replace(/\|/g, "\\|").replace(/\n+/g, " ")} |`).join("\n")
-              : `| — | **${outcome}** | ${log ? "```\n" + log.slice(-1500) + "\n```" : "no output"} |`;
+              : `| — | **no result** (exit ${exit}) | ${log ? "`" + log.replace(/\s+/g, " ").slice(-600) + "`" : "the verifier produced no output"} |`;
             const body = [
               "<!-- codex-security-verify-fix -->",
               `## Codex Security verify-fix · \`${head.slice(0, 7)}\``,
