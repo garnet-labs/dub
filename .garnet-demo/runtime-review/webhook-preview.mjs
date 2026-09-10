@@ -1,9 +1,22 @@
-// Exercises apps/web/lib/webhook/preview.ts the way the preview endpoint calls it.
-// Run with: node --experimental-strip-types webhook-preview.mjs
 import { deliverWebhookPreview } from "../../apps/web/lib/webhook/preview.ts";
 
-const targetUrl =
-  process.env.PREVIEW_TARGET_URL ?? "https://example.com/garnet-deepsec-demo";
-const result = await deliverWebhookPreview(targetUrl);
-console.log(JSON.stringify(result));
+// One public receiver and one address a webhook preview must never reach.
+const targetUrls = (
+  process.env.PREVIEW_TARGET_URLS ??
+  "https://example.com/garnet-deepsec-demo,http://169.254.169.254/latest/meta-data/"
+).split(",");
+
+for (const targetUrl of targetUrls) {
+  try {
+    console.log(JSON.stringify(await deliverWebhookPreview(targetUrl)));
+  } catch (error) {
+    console.log(
+      JSON.stringify({
+        status: "error",
+        destination: new URL(targetUrl).hostname,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+}
 await new Promise((resolve) => setTimeout(resolve, 5_000));
