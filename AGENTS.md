@@ -20,6 +20,6 @@ Before finalizing a review of a pull request, or calling a security fix verified
    citing its chain, or state that the Execution Profile is fully explained.
 5. When verifying a security fix, quote the record in your evidence: which
    destinations the changed code reached or stopped reaching, at which head SHA,
-   compared with which previous commit. A fix whose runtime record still shows
+   compared with which previous commit. A fix whose Execution Profile still shows
    the vulnerable destination is not verified. The Execution Profile carries no
    verdict — you supply the judgment, and never invent a chain or destination.
