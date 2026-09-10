@@ -31,7 +31,7 @@ jobs:
       - name: Garnet Runtime Review
         uses: garnet-org/action@e546567a72e4fede11ec39d6e9f75b539adef22c # main 2026-09-04
         with:
-          jibril_version: v2.17.0-rc.8
+          jibril_version: v2.17.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
