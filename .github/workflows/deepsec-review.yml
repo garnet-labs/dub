@@ -8,6 +8,10 @@ on:
       - "apps/web/app/api/webhooks/preview/**"
       - ".github/workflows/deepsec-review.yml"
       - ".github/workflows/deepsec-review-comment.yml"
+      - ".github/workflows/codex-security-verify-fix.yml"
+      - ".github/codex-security/**"
+      - "AGENTS.md"
+      - "SECURITY.md"
 
 permissions: {}
 
@@ -82,7 +86,7 @@ jobs:
       - name: Exercise the reviewed path
         working-directory: .garnet-demo/runtime-review
         env:
-          PREVIEW_TARGET_URL: https://example.com/garnet-deepsec-demo
+          PREVIEW_TARGET_URLS: https://example.com/garnet-deepsec-demo,http://169.254.169.254/latest/meta-data/
         run: node --experimental-strip-types webhook-preview.mjs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
