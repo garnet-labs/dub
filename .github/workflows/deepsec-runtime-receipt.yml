@@ -1,0 +1,214 @@
+name: DeepSec runtime receipt
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/lib/actions/send-test-webhook.ts"
+      - "apps/web/lib/webhook/send-test-webhook-preview.ts"
+      - "apps/web/tests/webhooks/send-test-webhook-preview.integration.test.mjs"
+      - ".github/workflows/deepsec-runtime-receipt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  review:
+    name: Native DeepSec review and integration test
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out Dub
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start Garnet Runtime Review
+        uses: garnet-org/action@main
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
+          jibril_version: v2.17.0-rc.8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install DeepSec and the exact-run adapter
+        env:
+          PLUGIN_REF: bedf5da917f7e3f83cba8913768eaf7d413c7230
+        run: |
+          tool_dir="$RUNNER_TEMP/deepsec-tools"
+          mkdir -p "$tool_dir"
+          cd "$tool_dir"
+          npm init -y
+          npm install --no-fund --no-audit \
+            deepsec@2.3.9 \
+            @anthropic-ai/claude-code \
+            "github:garnet-labs/deepsec-plugin#$PLUGIN_REF"
+          cat > deepsec.config.ts <<'EOF'
+          import { defineConfig } from "deepsec/config";
+          import garnetPlugin from "@garnet-org/deepsec-plugin";
+
+          export default defineConfig({
+            projects: [{ id: "dub-pr-review", root: process.env.GITHUB_WORKSPACE! }],
+            plugins: [garnetPlugin({})],
+          });
+          EOF
+          echo "DEEPSEC_TOOL_DIR=$tool_dir" >> "$GITHUB_ENV"
+
+      - name: Run webhook preview integration test
+        env:
+          RUNTIME_RECEIVER_URL: ${{ vars.RUNTIME_RECEIVER_URL }}
+          RUNTIME_RECEIVER_TOKEN: ${{ secrets.RUNTIME_RECEIVER_TOKEN }}
+        run: |
+          node --experimental-strip-types --test \
+            apps/web/tests/webhooks/send-test-webhook-preview.integration.test.mjs
+          sleep 10
+
+      - name: Run native DeepSec PR review
+        id: deepsec
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          CLAUDE_CODE_EXECUTABLE: claude
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/review-artifacts"
+          cd "$DEEPSEC_TOOL_DIR"
+          set +e
+          npx deepsec process \
+            --diff "origin/$BASE_REF" \
+            --root "$GITHUB_WORKSPACE" \
+            --project-id dub-pr-review \
+            --comment-out "$RUNNER_TEMP/review-artifacts/deepsec-comment.md"
+          status=$?
+          set -e
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
+          npx deepsec export \
+            --project-id dub-pr-review \
+            --format json \
+            --out "$RUNNER_TEMP/review-artifacts/deepsec-findings.json"
+
+      - name: Record review identity
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '0' }}
+        run: |
+          jq -n \
+            --arg headSha "$HEAD_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg pullRequest "$PR_NUMBER" \
+            '{headSha:$headSha,runId:$runId,pullRequest:($pullRequest|tonumber)}' \
+            > "$RUNNER_TEMP/review-artifacts/review-meta.json"
+
+      - name: Upload native DeepSec output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepsec-runtime-receipt
+          path: ${{ runner.temp }}/review-artifacts
+          retention-days: 3
+
+  correlate:
+    name: Attach exact-run Garnet receipt
+    needs: review
+    if: always() && needs.review.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install DeepSec and the exact-run adapter
+        env:
+          PLUGIN_REF: bedf5da917f7e3f83cba8913768eaf7d413c7230
+        run: |
+          npm init -y
+          npm install --no-fund --no-audit \
+            deepsec@2.3.9 \
+            "github:garnet-labs/deepsec-plugin#$PLUGIN_REF"
+          cat > deepsec.config.ts <<'EOF'
+          import { defineConfig } from "deepsec/config";
+          import garnetPlugin from "@garnet-org/deepsec-plugin";
+
+          export default defineConfig({
+            projects: [{ id: "dub-pr-review", root: process.cwd() }],
+            plugins: [garnetPlugin({})],
+          });
+          EOF
+
+      - name: Download native DeepSec output
+        uses: actions/download-artifact@v4
+        with:
+          name: deepsec-runtime-receipt
+          path: artifacts
+
+      - name: Correlate the exact workflow run
+        env:
+          GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
+        run: |
+          npx deepsec garnet-correlate \
+            --findings artifacts/deepsec-findings.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --step "Run webhook preview integration test" \
+            --out artifacts/garnet-correlated.json \
+            --comment-out artifacts/garnet-comment.md
+
+      - name: Post one combined review comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- deepsec-garnet-runtime-receipt -->";
+            const read = (name) =>
+              fs.existsSync(`artifacts/${name}`)
+                ? fs.readFileSync(`artifacts/${name}`, "utf8").trim()
+                : "";
+            const deepsec =
+              read("deepsec-comment.md") ||
+              "## DeepSec PR review\n\nNo net-new findings were reported.";
+            const garnet = read("garnet-comment.md");
+            const meta = JSON.parse(read("review-meta.json"));
+            const body = [
+              marker,
+              deepsec,
+              "---",
+              garnet,
+              `<sub>DeepSec reviewed \`${meta.headSha.slice(0, 7)}\`; Garnet evidence is bound to workflow run \`${meta.runId}\`.</sub>`,
+            ]
+              .filter(Boolean)
+              .join("\n\n");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 },
+            );
+            const prior = comments.find((comment) =>
+              comment.body?.includes(marker),
+            );
+            if (prior) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: prior.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
