@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - ".garnet-demo/runtime-review/**"
+      - "apps/web/lib/webhook/preview.ts"
+      - "apps/web/app/api/webhooks/preview/**"
       - ".github/workflows/deepsec-review.yml"
       - ".github/workflows/deepsec-review-comment.yml"
 
@@ -35,36 +37,53 @@ jobs:
         working-directory: .garnet-demo/runtime-review
         run: npm ci --no-fund --no-audit
 
+      # No `id:` on run steps: Jibril attributes processes to steps through the
+      # anonymous `__run_N` GITHUB_ACTION values, and a custom id shifts them.
       - name: Review the pull request diff with DeepSec
-        id: deepsec
         working-directory: .garnet-demo/runtime-review
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          # The ephemeral runner is the isolation boundary, so skip Codex's
+          # nested sandbox (network stays disabled for the agent's shell).
+          DEEPSEC_INSIDE_SANDBOX: "1"
           BASE_REF: ${{ github.base_ref }}
         run: |
+          review() {
+            model_flag=""
+            if [ "$1" = deterministic-review-fixture ]; then model_flag="--model no-model-fixture"; fi
+            set +e
+            # shellcheck disable=SC2086
+            npx deepsec process \
+              --diff "origin/$BASE_REF" \
+              --root ../.. \
+              --project-id dub-runtime-review-demo \
+              --agent "$1" $model_flag \
+              --comment-out deepsec-comment.md 2>&1 | tee deepsec-process.log
+            status=${PIPESTATUS[0]}
+            set -e
+            case "$status" in 0|1) ;; *) exit "$status" ;; esac
+          }
           agent=codex
-          if [ -z "$AI_GATEWAY_API_KEY" ]; then agent=deterministic-review-fixture; fi
-          echo "agent=$agent" >> "$GITHUB_OUTPUT"
-          set +e
-          npx deepsec process \
-            --diff "origin/$BASE_REF" \
-            --root ../.. \
-            --project-id dub-runtime-review-demo \
-            --agent "$agent" \
-            --comment-out deepsec-comment.md
-          status=$?
-          set -e
-          case "$status" in 0|1) ;; *) exit "$status" ;; esac
+          agent_note=""
+          if [ -z "$AI_GATEWAY_API_KEY" ]; then agent=deterministic-review-fixture; agent_note="no AI_GATEWAY_API_KEY"; fi
+          review "$agent"
+          # DeepSec reports "0 findings" when the model backend fails; fall back to the labeled fixture instead of publishing a false negative.
+          if [ "$agent" = codex ] && grep -qE "Errored batches: [1-9]|Codex (SDK|turn|stream) (error|failed)" deepsec-process.log; then
+            agent_note="codex unavailable: $(grep -oE 'status [0-9]{3}[^)]*' deepsec-process.log | head -1 | tr -d '"\\' | cut -c1-80)"
+            agent=deterministic-review-fixture
+            rm -f deepsec-comment.md
+            review "$agent"
+          fi
           if [ ! -e deepsec-comment.md ]; then touch deepsec-comment.md; fi
           npx deepsec export --project-id dub-runtime-review-demo --format json --out deepsec-findings.json
-          printf '{"pullRequest":%s,"headSha":"%s","agent":"%s","findingsExit":%s}\n' \
-            "${{ github.event.pull_request.number }}" "${{ github.event.pull_request.head.sha }}" "$agent" "$status" > review-meta.json
+          printf '{"pullRequest":%s,"headSha":"%s","agent":"%s","agentNote":"%s","findingsExit":%s}\n' \
+            "${{ github.event.pull_request.number }}" "${{ github.event.pull_request.head.sha }}" "$agent" "$agent_note" "$status" > review-meta.json
 
       - name: Exercise the reviewed path
         working-directory: .garnet-demo/runtime-review
         env:
           PREVIEW_TARGET_URL: https://example.com/garnet-deepsec-demo
-        run: node webhook-preview.mjs
+        run: node --experimental-strip-types webhook-preview.mjs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

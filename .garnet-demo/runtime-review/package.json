@@ -4,6 +4,6 @@
   "type": "module",
   "dependencies": {
     "deepsec": "2.3.9",
-    "@garnet-org/deepsec-plugin": "github:garnet-labs/deepsec-plugin#bedf5da917f7e3f83cba8913768eaf7d413c7230"
+    "@garnet-org/deepsec-plugin": "github:garnet-labs/deepsec-plugin#8ecdd9bf8b45db0b96a846463ff11b45d43dbccc"
   }
 }
